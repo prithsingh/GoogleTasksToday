@@ -1,0 +1,75 @@
+.gtt-hidden {
+  display: none !important;
+}
+
+/* While Today is active, the natively selected item ("All tasks") must not look selected. */
+.gtt-inactive {
+  background-color: transparent !important;
+}
+
+#gtt-today-item {
+  cursor: pointer;
+}
+
+#gtt-today-item.gtt-active {
+  background-color: var(--gtt-active-bg, rgba(128, 128, 128, 0.24)) !important;
+}
+
+/* Today view: lists stacked into one card (see mergeColumns in content.js). */
+.gtt-merged {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow-y: auto !important;
+}
+
+.gtt-card {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  max-height: none !important;
+}
+
+.gtt-card:not(.gtt-card-last) {
+  margin-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.gtt-card:not(.gtt-card-first) {
+  margin-top: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+/* One scrollbar for the whole card instead of one per list. */
+.gtt-card-body {
+  overflow: visible !important;
+}
+
+/* Retitle the first list's header without touching Google's text. */
+.gtt-title {
+  visibility: hidden;
+  position: relative;
+}
+
+.gtt-title::after {
+  content: attr(data-gtt-title);
+  visibility: visible;
+  position: absolute;
+  inset: 0;
+}
+
+/* List name shown after a task's due date in the merged card. */
+.gtt-list-tag::after {
+  content: attr(data-gtt-list);
+  align-self: center;
+  margin-left: 8px;
+  padding: 3px 10px;
+  border-radius: 15px;
+  background: rgba(128, 128, 128, 0.14);
+  font: 500 12px/18px "Google Sans Text", "Google Sans", Roboto, sans-serif;
+  color: inherit;
+  opacity: 0.8;
+  white-space: nowrap;
+}

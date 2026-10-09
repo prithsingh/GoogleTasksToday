@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<!--
+  Mock of the tasks.google.com DOM structure the content script relies on.
+  Run: ./test/run.sh   (loads this in headless Chrome and prints PASS/FAIL)
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../content.css">
+  <style>
+    [role="menuitem"][aria-selected="true"] { background-color: rgb(0, 74, 119); }
+    .row { display: flex; gap: 16px; }
+    [role="listitem"] > div { display: flex; flex-direction: row; } /* chips row, like Google's */
+  </style>
+</head>
+<body>
+  <!-- Google Calendar chrome that must be left alone. -->
+  <aside id="calendar-sidebar">
+    <div role="menu" id="decoy-menu">
+      <div role="menuitem">Event</div>
+      <div role="menuitem">Task</div>
+    </div>
+    <div><h2>My calendars</h2><div role="list"><div role="listitem">Birthdays</div></div></div>
+  </aside>
+  <nav>
+    <div role="menu">
+      <div role="menuitem" id="all" jsaction="click:all" aria-selected="true"><span>check_circle</span><span>All tasks</span></div>
+      <div role="menuitem" id="starred" jsaction="click:starred"><span>star_border</span><span>Starred</span></div>
+    </div>
+    <div role="listbox">
+      <div role="option" id="opt-work">Work</div>
+    </div>
+  </nav>
+  <main><div class="row" id="row"></div></main>
+  <pre id="result"></pre>
+
+  <script>
+    // Build columns with badge dates relative to the real current date.
+    const day = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d; };
+    const fmt = (offset, opts) => new Intl.DateTimeFormat('en', opts).format(day(offset));
+    const md = { month: 'short', day: 'numeric' };
+
+    const task = (title, badge) => `
+      <div role="listitem"><div aria-label="${title}, Press enter to edit">
+        <div aria-label="Task title"><html-blob>${title}</html-blob></div>
+        ${badge ? `<div aria-label="${badge}">${badge}</div>` : ''}
+      </div></div>`;
+    // Badge without an aria-label, in a span.
+    const spanTask = (title, badge) => `
+      <div role="listitem"><div><html-blob>${title}</html-blob><span><span>${badge}</span></span></div></div>`;
+    const header = (text) => `<div role="listitem"><h3>${text}</h3></div>`;
+    const column = (name, rows, completed = '') => `
+      <div class="col" data-name="${name}">
+        <div><div><h2>${name}</h2></div></div>
+        <div role="list">${rows.join('')}</div>
+        ${completed}
+      </div>`;
+
+    document.getElementById('row').innerHTML = [
+      column('My Tasks', [
+        task('Due today', 'Today'),
+        task('Due today with time', 'Today, 1:30 PM'),
+        task('Due yesterday', 'Yesterday'),
+        task('Due 3 days ago', '3 days ago'),
+        task('Due 1 week ago', '1 week ago'),
+        task('Due 5 days ago', fmt(-5, { weekday: 'short', ...md })),
+        task('Due last year', fmt(-370, { ...md, year: 'numeric' })),
+        task('Due 9 days ago long', fmt(-9, { weekday: 'long', month: 'long', day: 'numeric' })),
+        task('Due 2 days ago numeric', fmt(-2, { month: 'numeric', day: 'numeric' })),
+        spanTask('Due 4 days ago span badge', fmt(-4, { weekday: 'short', ...md })),
+        task('Due in 9 days long', fmt(9, { weekday: 'long', month: 'long', day: 'numeric' })),
+        task('Due tomorrow', 'Tomorrow'),
+        task('Due in 6 days', fmt(6, { weekday: 'short', ...md })),
+        task('Due next year', fmt(730, { ...md, year: 'numeric' })),
+        task('No date', ''),
+        task('Today', 'Tomorrow'),
+      ], `<div><div><button aria-expanded="false">Completed (1)</button></div><div hidden><div role="list">${task('Done yesterday', 'Yesterday')}</div></div></div>`),
+      column('Work', [
+        header('Past'), task('Overdue no badge', ''),
+        header('Today'), task('Today no badge', ''),
+        header('Tomorrow'), task('Tomorrow no badge', ''),
+      ]),
+      column('Someday', [task('Far future', fmt(40, { weekday: 'short', ...md }))]),
+    ].join('');
+
+    // Simulate Google: "All tasks" click re-selects it and lazily renders more tasks.
+    document.getElementById('all').addEventListener('click', () => {
+      window.allClicks = (window.allClicks || 0) + 1;
+      setTimeout(() => {
+        document.querySelector('[data-name="My Tasks"] [role="list"]')
+          .insertAdjacentHTML('beforeend', task('Late loaded today', 'Today') + task('Late loaded future', 'Tomorrow'));
+      }, 50);
+    });
+    document.getElementById('starred').addEventListener('click', () => { window.starredClicks = (window.starredClicks || 0) + 1; });
+
+    // Simulate Google's new-task row: quick Today / Tomorrow buttons that ignore
+    // clicks while the title has focus, Enter saves undated and opens another
+    // new task, like the real page.
+    const myTasks = document.querySelector('[data-name="My Tasks"]');
+    myTasks.insertAdjacentHTML('afterbegin', '<button jsname="MhySTb">Add a task</button>');
+    const newTask = () => {
+      const row = document.createElement('div');
+      row.setAttribute('role', 'listitem');
+      row.className = 'draft';
+      row.innerHTML = `<div aria-label="New task"><div role="group" aria-label="Task title"><textarea></textarea></div>
+        <div class="chips"><div role="button">Today</div><div role="button">Tomorrow</div></div></div>`;
+      const title = row.querySelector('textarea');
+      const save = (date) => {
+        row.firstElementChild.setAttribute('aria-label', title.value + (date ? ' with date Today' : ''));
+        row.querySelector('.chips').innerHTML = date ? '<div role="button">Today</div>' : '';
+      };
+      row.querySelector('.chips [role="button"]').addEventListener('click', () => {
+        if (document.activeElement !== title) save(true);
+      });
+      title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { save(false); addTask(); } });
+      return row;
+    };
+    const addTask = () => {
+      const row = newTask();
+      myTasks.querySelector('[role="list"]').prepend(row);
+      row.querySelector('textarea').focus();
+    };
+    myTasks.querySelector('[jsname="MhySTb"]').addEventListener('click', addTask);
+  </script>
+  <script src="../content.js"></script>
+  <script>
+    const out = [];
+    const check = (name, ok, detail = '') => out.push(`${ok ? 'PASS' : 'FAIL'} ${name}${ok ? '' : '  ' + detail}`);
+    const visible = (el) => el.getClientRects().length > 0;
+    const visibleTitles = () => [...document.querySelectorAll('html-blob')].filter(visible).map((e) => e.textContent);
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    (async () => {
+      const today = document.getElementById('gtt-today-item');
+      check('today item placed under Starred', today && document.getElementById('starred').nextElementSibling === today);
+      check('label is "Today"', today && today.textContent.trim() === 'Today', today && today.textContent);
+      check('icon replaced with svg', today && today.querySelector('svg') && !today.textContent.includes('star'));
+      check('jsaction stripped', today && !today.hasAttribute('jsaction'));
+      check('Calendar menu untouched', document.querySelectorAll('#decoy-menu [role="menuitem"]').length === 2);
+
+      today.click();
+      await wait(600);
+
+      const expected = [
+        'Due today', 'Due today with time', 'Due yesterday', 'Due 3 days ago', 'Due 1 week ago', 'Due 5 days ago',
+        'Due last year', 'Due 9 days ago long', 'Due 2 days ago numeric', 'Due 4 days ago span badge',
+        'Overdue no badge', 'Today no badge', 'Late loaded today',
+      ].sort();
+      const got = visibleTitles().sort();
+      check('only today + overdue visible', same(got, expected), JSON.stringify(got));
+      check('"All tasks" opened', window.allClicks === 1, String(window.allClicks));
+      check('Starred not triggered', !window.starredClicks);
+      const h3s = [...document.querySelectorAll('h3')].filter(visible).map((h) => h.textContent);
+      check('only Past/Today headers shown', same(h3s, ['Past', 'Today']), JSON.stringify(h3s));
+      check('completed section hidden', !visible([...document.querySelectorAll('button')].find((b) => b.textContent.startsWith('Completed'))));
+      check('empty column hidden', !visible(document.querySelector('[data-name="Someday"]')));
+      const col = (name) => document.querySelector(`[data-name="${name}"]`);
+      check('lists merged into one card', document.getElementById('row').classList.contains('gtt-merged') &&
+        col('My Tasks').classList.contains('gtt-card-first') && col('Work').classList.contains('gtt-card-last'));
+      check('merged card titled Today', col('My Tasks').querySelector('h2').dataset.gttTitle === 'Today' &&
+        getComputedStyle(col('My Tasks').querySelector('h2'), '::after').content === '"Today"');
+      check('other list headers hidden', !visible(col('Work').querySelector('h2')) && visible(col('My Tasks').querySelector('h2')));
+      const rowOf = (t) => [...document.querySelectorAll('html-blob')].find((b) => b.textContent === t).closest('[role="listitem"]');
+      const tag = (t) => rowOf(t).querySelector('.gtt-list-tag')?.dataset.gttList;
+      check('tasks tagged with their list', tag('Due yesterday') === 'My Tasks' &&
+        getComputedStyle(rowOf('Due yesterday').querySelector('.gtt-list-tag'), '::after').content === '"My Tasks"', String(tag('Due yesterday')));
+      check('lists stacked vertically', col('Work').getBoundingClientRect().top >= col('My Tasks').getBoundingClientRect().bottom - 1);
+      check('Calendar list untouched', visible(document.querySelector('#calendar-sidebar [role="listitem"]')));
+      check('Today highlighted', today.classList.contains('gtt-active') &&
+        getComputedStyle(today).backgroundColor === 'rgb(0, 74, 119)', getComputedStyle(today).backgroundColor);
+      check('All tasks un-highlighted', getComputedStyle(document.getElementById('all')).backgroundColor === 'rgba(0, 0, 0, 0)');
+
+      // New tasks added in the Today view get today's date.
+      const label = (row) => row.firstElementChild.getAttribute('aria-label');
+      document.querySelector('[jsname="MhySTb"]').click();
+      const first = document.querySelector('.draft');
+      first.querySelector('textarea').value = 'Added with Enter';
+      first.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await wait(600);
+      check('Enter saves new task dated today', label(first) === 'Added with Enter with date Today', label(first));
+      const second = document.querySelector('.draft');
+      check('Enter opens the next new task', second !== first && document.activeElement === second.querySelector('textarea'));
+      second.querySelector('textarea').value = 'Added then clicked away';
+      second.querySelector('textarea').blur();
+      await wait(100);
+      check('clicking away saves new task dated today', label(second) === 'Added then clicked away with date Today', label(second));
+      document.querySelector('[jsname="MhySTb"]').click();
+      await wait(300);
+      check('empty new task left undated', label(document.querySelector('.draft')) === 'New task');
+
+      document.getElementById('opt-work').click();
+      await wait(300);
+      check('clicking a list restores everything', visibleTitles().length === document.querySelectorAll('html-blob:not([hidden] *)').length);
+      check('Today un-highlighted', !today.classList.contains('gtt-active'));
+      check('merge undone', !document.querySelector('.gtt-merged, .gtt-card, .gtt-title, .gtt-list-tag'));
+
+      document.getElementById('result').textContent = out.join('\n');
+    })();
+  </script>
+</body>
+</html>
