@@ -39,3 +39,7 @@ Google's class names are obfuscated, so `content.js` locates elements by ARIA ro
 The Tasks UI inside Google Calendar is an iframe from `tasks.google.com/embed/`, so the content script runs in all frames.
 
 If Google changes this markup the filter can break; update the selectors in `content.js` and the fixture.
+
+## License
+
+[MIT](LICENSE)
