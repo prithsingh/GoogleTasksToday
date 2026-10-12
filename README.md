@@ -3,6 +3,8 @@
 Chrome extension that adds a **Today** item to the Google Tasks sidebar — both [Calendar's Tasks view](https://calendar.google.com/calendar/u/0/r/tasks) and [tasks.google.com](https://tasks.google.com).
 Selecting it shows only overdue tasks and tasks due today, across all your lists.
 
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/today-view-for-google-tas/opkaepelieojhoenmghbhgkoaokncfce)**
+
 - No sign-in, no API access, no permissions — a content script that filters the page you already see.
 - Date labels are matched in the page's language via `Intl` (e.g. "Today", "Yesterday", "3 days ago", "Wed, Sep 24").
 - Due tasks from every list appear together in one **Today** card, each tagged with its list name; completed tasks are hidden and the view re-filters as tasks change.
